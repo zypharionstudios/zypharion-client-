@@ -1,6 +1,8 @@
 package com.example.client;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.Items;
@@ -13,6 +15,8 @@ public final class ClientModuleRuntime {
 	private static int totemTick;
 	private static FreecamCamera camera;
 	private static Vec3 playerAnchor;
+	private static LocalPlayer freecamOwner;
+	private static ClientLevel freecamLevel;
 
 	private ClientModuleRuntime() {
 	}
@@ -26,8 +30,7 @@ public final class ClientModuleRuntime {
 	public static void tick(Minecraft client) {
 		updateFullbright(client);
 		if (client.player == null) {
-			camera = null;
-			playerAnchor = null;
+			stopFreecam(client);
 			return;
 		}
 
@@ -91,12 +94,17 @@ public final class ClientModuleRuntime {
 	}
 
 	private static void updateFreecam(Minecraft client) {
+		if (camera != null && (client.player != freecamOwner || client.level != freecamLevel)) {
+			stopFreecam(client);
+		}
 		if (!ClientModules.isEnabled(ClientModules.Module.FREECAM)) {
 			stopFreecam(client);
 			return;
 		}
 
 		if (camera == null) {
+			freecamOwner = client.player;
+			freecamLevel = client.level;
 			playerAnchor = client.player.position();
 			camera = new FreecamCamera(client.player);
 			client.setCameraEntity(camera);
@@ -104,6 +112,9 @@ public final class ClientModuleRuntime {
 
 		client.player.setPos(playerAnchor);
 		client.player.setDeltaMovement(Vec3.ZERO);
+		if (client.gui.screen() != null) {
+			return;
+		}
 		float yawRadians = camera.getYRot() * ((float) Math.PI / 180.0F);
 		Vec3 forward = new Vec3(-Math.sin(yawRadians), 0.0, Math.cos(yawRadians));
 		Vec3 right = new Vec3(Math.cos(yawRadians), 0.0, Math.sin(yawRadians));
@@ -125,13 +136,17 @@ public final class ClientModuleRuntime {
 		if (camera == null) {
 			return;
 		}
-		client.setCameraEntity(client.player);
-		if (client.player != null && playerAnchor != null) {
-			client.player.setPos(playerAnchor);
-			client.player.setDeltaMovement(Vec3.ZERO);
+		if (client.getCameraEntity() == camera) {
+			client.setCameraEntity(client.player);
+		}
+		if (client.player == freecamOwner && playerAnchor != null) {
+			freecamOwner.setPos(playerAnchor);
+			freecamOwner.setDeltaMovement(Vec3.ZERO);
 		}
 		camera = null;
 		playerAnchor = null;
+		freecamOwner = null;
+		freecamLevel = null;
 	}
 
 	private static void refreshChunks() {

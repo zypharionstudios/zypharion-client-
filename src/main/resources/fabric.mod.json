@@ -1,7 +1,7 @@
 {
 	"schemaVersion": 1,
 		"id": "zypharion-client",
-		"version": "1.0.2",
+		"version": "1.0.3",
 		"name": "Zypharion Client",
 		"description": "Zypharion client modules for Minecraft 26.2.",
 	"authors": [

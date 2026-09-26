@@ -20,7 +20,7 @@ public abstract class FreecamLookMixin {
 		}
 
 		Minecraft client = Minecraft.getInstance();
-		if (client.gameRenderer.mainCamera().entity() instanceof FreecamCamera camera) {
+		if (client.getCameraEntity() instanceof FreecamCamera camera) {
 			camera.turn(mouseX, mouseY);
 			callback.cancel();
 		}
