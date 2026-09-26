@@ -2,60 +2,119 @@ package com.example.client;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
+import java.util.EnumMap;
+import java.util.Map;
+
 public final class ClientMenuScreen extends Screen {
+	private enum Category {
+		COMBAT("Combat"),
+		PLAYER("Player"),
+		MOVEMENT("Movement"),
+		RENDER("Render"),
+		WORLD("World"),
+		MISC("Misc");
+
+		private final String label;
+
+		Category(String label) {
+			this.label = label;
+		}
+	}
+
+	private final Map<ClientModules.Module, Button> moduleButtons = new EnumMap<>(ClientModules.Module.class);
+	private EditBox searchBox;
+
 	public ClientMenuScreen() {
 		super(Component.literal("Zypharion Client"));
 	}
 
 	@Override
 	protected void init() {
-		int panelWidth = Math.min(560, this.width - 32);
-		int panelHeight = Math.min(310, this.height - 28);
-		int panelLeft = (this.width - panelWidth) / 2;
-		int panelTop = (this.height - panelHeight) / 2;
-		int gap = 12;
-		int buttonWidth = (panelWidth - 48 - gap) / 2;
-		int startX = panelLeft + 24;
-		int startY = panelTop + 86;
+		moduleButtons.clear();
+		int panelWidth = panelWidth();
+		int left = (this.width - panelWidth) / 2;
+		int top = (this.height - panelHeight()) / 2;
+		int columns = panelWidth >= 660 ? 6 : panelWidth >= 430 ? 3 : 2;
+		int gap = 6;
+		int innerWidth = panelWidth - 32;
+		int columnWidth = (innerWidth - gap * (columns - 1)) / columns;
+		int categoryTop = top + 62;
+		int categoryBlockHeight = 94;
 
-		ClientModules.Module[] modules = ClientModules.Module.values();
-		for (int index = 0; index < modules.length; index++) {
-			ClientModules.Module module = modules[index];
-			int column = index % 2;
-			int row = index / 2;
-			int x = startX + column * (buttonWidth + gap);
-			int y = startY + row * 32;
-			this.addRenderableWidget(Button.builder(label(module), button -> {
-				ClientModules.toggle(module);
-				button.setMessage(label(module));
-			}).bounds(x, y, buttonWidth, 22).build());
+		searchBox = new EditBox(this.font, left + panelWidth - 194, top + 17, 174, 18,
+				Component.literal("Search modules"));
+		searchBox.setMaxLength(32);
+		searchBox.setHint(Component.literal("Search modules"));
+		searchBox.setResponder(value -> filterModules());
+		this.addRenderableWidget(searchBox);
+
+		Category[] categories = Category.values();
+		for (int index = 0; index < categories.length; index++) {
+			Category category = categories[index];
+			int column = index % columns;
+			int row = index / columns;
+			int x = left + 16 + column * (columnWidth + gap);
+			int y = categoryTop + row * categoryBlockHeight;
+			int moduleRow = 0;
+			for (ClientModules.Module module : ClientModules.Module.values()) {
+				if (categoryFor(module) != category) {
+					continue;
+				}
+				int buttonY = y + 23 + moduleRow * 21;
+				Button button = Button.builder(moduleLabel(module), widget -> {
+					ClientModules.toggle(module);
+					widget.setMessage(moduleLabel(module));
+				}).bounds(x, buttonY, columnWidth, 18).build();
+				moduleButtons.put(module, button);
+				this.addRenderableWidget(button);
+				moduleRow++;
+			}
 		}
 
-		this.addRenderableWidget(Button.builder(Component.literal("SCHLIESSEN"), button -> this.onClose())
-				.bounds(panelLeft + panelWidth - 132, panelTop + panelHeight - 36, 108, 20)
+		this.addRenderableWidget(Button.builder(Component.literal("CLOSE"), button -> this.onClose())
+				.bounds(left + panelWidth - 82, top + panelHeight() - 27, 66, 18)
 				.build());
+		filterModules();
 	}
 
 	@Override
-	public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-		int panelWidth = Math.min(560, this.width - 32);
-		int panelHeight = Math.min(310, this.height - 28);
+	public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+		int panelWidth = panelWidth();
+		int panelHeight = panelHeight();
 		int left = (this.width - panelWidth) / 2;
 		int top = (this.height - panelHeight) / 2;
-		graphics.fill(0, 0, this.width, this.height, 0xA900080D);
-		graphics.fill(left, top, left + panelWidth, top + panelHeight, 0xF20B1118);
-		graphics.fill(left, top, left + panelWidth, top + 2, 0xFF39D6C5);
-		graphics.fill(left + 18, top + 61, left + panelWidth - 18, top + 62, 0xFF263640);
-		graphics.outline(left, top, panelWidth, panelHeight, 0xFF31434C);
-		graphics.fill(left + 20, top + 18, left + 23, top + 44, 0xFF39D6C5);
-		graphics.text(this.font, "Z Y P H A R I O N", left + 32, top + 16, 0xFFF2FAFA, true);
-		graphics.text(this.font, "CLIENT  /  MODULE CONTROL", left + 32, top + 34, 0xFF8EA7AD, false);
-		graphics.text(this.font, "" + enabledCount() + " MODULES ACTIVE", left + 20, top + 70, 0xFF8EA7AD, false);
-		graphics.text(this.font, "26.2", left + panelWidth - 56, top + 34, 0xFF39D6C5, true);
-		super.extractRenderState(graphics, mouseX, mouseY, delta);
+		int columns = panelWidth >= 660 ? 6 : panelWidth >= 430 ? 3 : 2;
+		int gap = 6;
+		int innerWidth = panelWidth - 32;
+		int columnWidth = (innerWidth - gap * (columns - 1)) / columns;
+		int categoryTop = top + 62;
+		int categoryBlockHeight = 94;
+
+		graphics.fill(0, 0, this.width, this.height, 0x9504070B);
+		graphics.fill(left, top, left + panelWidth, top + panelHeight, 0xE80A0D13);
+		graphics.fill(left, top, left + panelWidth, top + 2, 0xFF9D43F5);
+		graphics.outline(left, top, panelWidth, panelHeight, 0xFF443252);
+		graphics.fill(left + 15, top + 15, left + 18, top + 42, 0xFF9D43F5);
+		graphics.text(this.font, "ZYPHARION", left + 25, top + 14, 0xFFF4ECFF, true);
+		graphics.text(this.font, "CLIENT  /  26.2", left + 25, top + 30, 0xFFAA9BB9, false);
+		graphics.fill(left + 15, top + 53, left + panelWidth - 15, top + 54, 0xFF34283E);
+
+		Category[] categories = Category.values();
+		for (int index = 0; index < categories.length; index++) {
+			int column = index % columns;
+			int row = index / columns;
+			int x = left + 16 + column * (columnWidth + gap);
+			int y = categoryTop + row * categoryBlockHeight;
+			graphics.fill(x, y, x + columnWidth, y + 18, 0xFF7031B3);
+			graphics.text(this.font, categories[index].label, x + 5, y + 5, 0xFFFFFFFF, true);
+		}
+
+		graphics.text(this.font, "" + enabledCount() + " ACTIVE", left + 16,
+				top + panelHeight - 22, 0xFFB9A8C8, false);
 	}
 
 	@Override
@@ -63,14 +122,40 @@ public final class ClientMenuScreen extends Screen {
 		return false;
 	}
 
-	private static Component label(ClientModules.Module module) {
-		return Component.literal((ClientModules.isEnabled(module) ? "[ON]  " : "[OFF]  ") + module.label());
+	private void filterModules() {
+		String query = searchBox == null ? "" : searchBox.getValue().trim().toLowerCase();
+		for (Map.Entry<ClientModules.Module, Button> entry : moduleButtons.entrySet()) {
+			boolean matches = query.isEmpty() || entry.getKey().label().toLowerCase().contains(query);
+			entry.getValue().visible = matches;
+		}
+	}
+
+	private int panelWidth() {
+		return Math.min(760, Math.max(280, this.width - 16));
+	}
+
+	private int panelHeight() {
+		return Math.min(390, Math.max(230, this.height - 16));
+	}
+
+	private static Category categoryFor(ClientModules.Module module) {
+		return switch (module) {
+			case AUTO_TOTEM -> Category.PLAYER;
+			case FREECAM, FLY -> Category.MOVEMENT;
+			case XRAY, FULLBRIGHT, NO_FOG -> Category.RENDER;
+		};
+	}
+
+	private static Component moduleLabel(ClientModules.Module module) {
+		return Component.literal((ClientModules.isEnabled(module) ? "+ " : "- ") + module.label());
 	}
 
 	private static int enabledCount() {
 		int count = 0;
 		for (ClientModules.Module module : ClientModules.Module.values()) {
-			if (ClientModules.isEnabled(module)) count++;
+			if (ClientModules.isEnabled(module)) {
+				count++;
+			}
 		}
 		return count;
 	}

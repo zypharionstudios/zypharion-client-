@@ -30,18 +30,25 @@ jobs:
           path = "downloads/zypharion-client-26.2.jar"
           with zipfile.ZipFile(path) as jar:
               mod = json.loads(jar.read("fabric.mod.json"))
+              mixins = json.loads(jar.read("zypharion.client.mixins.json"))["client"]
               required = {
                   "com/example/client/ClientMenuScreen.class",
                   "com/example/client/ClientModuleRuntime.class",
                   "com/example/client/ClientModules.class",
                   "com/example/client/FreecamCamera.class",
+                  "com/example/client/mixin/FreecamLookMixin.class",
                   "com/example/client/mixin/XrayMixin.class",
+                  "com/example/client/mixin/XrayOcclusionMixin.class",
                   "com/example/client/mixin/NoFogMixin.class",
                   "zypharion.client.mixins.json",
               }
               missing = required.difference(jar.namelist())
               if missing:
                   raise SystemExit(f"JAR is missing entries: {sorted(missing)}")
+              required_mixins = {"FreecamLookMixin", "XrayMixin", "XrayOcclusionMixin", "NoFogMixin"}
+              missing_mixins = required_mixins.difference(mixins)
+              if missing_mixins:
+                  raise SystemExit(f"JAR mixin config is missing: {sorted(missing_mixins)}")
               if mod["id"] != "zypharion-client" or mod["depends"]["minecraft"] != "~26.2":
                   raise SystemExit("JAR metadata does not match Zypharion Client for Minecraft 26.2")
           print(f"Validated {path}: {mod['name']} {mod['version']} ({mod['depends']['minecraft']})")
