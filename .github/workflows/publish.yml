@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - downloads/zypharion-client-26.2.jar
+      - README.md
       - src/**
       - .github/workflows/publish.yml
   workflow_dispatch:
